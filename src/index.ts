@@ -164,8 +164,8 @@ export default Plugin.define({
         credential?.type === "key" ? credential.configuration : undefined
 
       const configuredBaseURL =
-        typeof configuration?.baseURL === "string"
-          ? configuration.baseURL
+        typeof configuration?.axonhubBaseURL === "string"
+          ? configuration.axonhubBaseURL
           : undefined
 
       const baseURL = normalizeBaseURL(
@@ -197,7 +197,7 @@ export default Plugin.define({
           form: [
             {
               type: "string",
-              key: "baseURL",
+              key: "axonhubBaseURL",
               title: "AxonHub URL",
               description:
                 "AxonHub root URL, for example https://axonhub.example.com (without /v1)",
@@ -224,7 +224,7 @@ export default Plugin.define({
           activation: "auto",
           integrationID: INTEGRATION_ID as any,
           package: "@opencode/ai/providers/anthropic",
-          settings: { baseURL: state.baseURL, transport: "http" },
+          settings: { transport: "http" },
         },
         models: state.models,
       })

@@ -31,7 +31,7 @@ opencode plugin add github:mlang233/opencode-axonhub-connect
 Pin a release tag if you prefer:
 
 ```sh
-opencode plugin add github:mlang233/opencode-axonhub-connect#v0.1.0
+opencode plugin add github:mlang233/opencode-axonhub-connect#v0.1.1
 ```
 
 Then connect:
@@ -91,7 +91,11 @@ Resolution order:
 
 ## How it works
 
-The plugin registers an `axonhub` integration with a key method. The key method includes a `baseURL` form field, so OpenCode stores both values in the credential configuration. On startup and on credential changes, the plugin fetches the model inventory and registers an `axonhub` provider with a per-model package and endpoint.
+The plugin registers an `axonhub` integration with a key method. The key method includes an `axonhubBaseURL` form field, so OpenCode stores both values in the credential configuration.
+
+The field is intentionally not named `baseURL`: OpenCode treats a credential `configuration.baseURL` as a provider-wide endpoint and would override the per-model endpoints. Using `axonhubBaseURL` keeps discovery and per-model routing independent.
+
+On startup and on credential changes, the plugin fetches the model inventory and registers an `axonhub` provider with a per-model package and endpoint. Requests use HTTP transport to avoid provider WebSocket negotiation with gateways that do not support it.
 
 ## Security
 

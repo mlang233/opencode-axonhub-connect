@@ -8,6 +8,7 @@ OpenCode V2 插件，用于连接 [AxonHub](https://github.com/looplj/axonhub)�
 
 - `/connect` 直接填写 **AxonHub URL + API Key**，无需在 `opencode.json` 里配置 `baseURL` 或 `apiKey`。
 - 从 `/v1/models` 和 `/v1/models?include=all` 自动发现模型。
+- 自动把 AxonHub 返回的模型价格映射到 OpenCode，会话花费和 footer 可以直接显示金额。
 - 按协议路由模型：
   - OpenAI 模型 → OpenAI **Responses API**（`/v1`）
   - Gemini 模型 → Google Gemini API（`/gemini/v1beta`）
@@ -33,7 +34,7 @@ opencode plugin add github:mlang233/opencode-axonhub-connect
 如果需要固定版本：
 
 ```sh
-opencode plugin add github:mlang233/opencode-axonhub-connect#v0.1.1
+opencode plugin add github:mlang233/opencode-axonhub-connect#v0.2.0
 ```
 
 然后连接：
@@ -63,6 +64,17 @@ opencode plugin add github:mlang233/opencode-axonhub-connect#v0.1.1
 | 其他 | 其他所有模型 | `@opencode/ai/providers/openai-compatible` | `/v1`（Chat Completions） |
 
 AxonHub URL 填根地址，不要带 `/v1`。即使误带了 `/v1`，插件也会自动去掉。
+
+## 模型价格
+
+`/v1/models?include=all` 会为配置了 ModelCard 的模型返回 `pricing`（USD / 100 万 tokens）。插件会把它映射成 OpenCode 的 `cost`，OpenCode 便能按输入、输出、缓存读/写的单价计算会话花费，footer 也会显示金额。
+
+注意：
+
+- 价格来自 AxonHub 的模型目录（ModelCard），不是 **Channels → Model Prices** 里配置的渠道价格。
+- AxonHub 注入的 `usage.cost`（按渠道价格计算）目前不会被 OpenCode 读取；OpenCode 始终用本地模型价格表计算。
+- 没有 ModelCard 的模型不会返回 `pricing`，`cost` 保持为空，花费仍显示为 0。
+- 如果渠道价格与目录价格不同，footer 金额可能与 AxonHub 用量页面存在差异；需要完全一致时，可以在 `opencode.json` 里覆盖对应模型的 `cost`。
 
 ## 非交互配置
 

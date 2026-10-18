@@ -8,6 +8,7 @@ OpenCode V2 plugin for [AxonHub](https://github.com/looplj/axonhub). It configur
 
 - `/connect` asks for **AxonHub URL + API Key**, so no `baseURL` or `apiKey` is needed in `opencode.json`.
 - Discovers models from `/v1/models` and `/v1/models?include=all`.
+- Maps AxonHub model pricing into OpenCode so session cost and the footer show real amounts.
 - Routes models by protocol:
   - OpenAI models → OpenAI **Responses API** (`/v1`)
   - Gemini models → Google Gemini API (`/gemini/v1beta`)
@@ -33,7 +34,7 @@ opencode plugin add github:mlang233/opencode-axonhub-connect
 Pin a release tag if you prefer:
 
 ```sh
-opencode plugin add github:mlang233/opencode-axonhub-connect#v0.1.1
+opencode plugin add github:mlang233/opencode-axonhub-connect#v0.2.0
 ```
 
 Then connect:
@@ -63,6 +64,17 @@ Models appear under the `axonhub/` prefix, for example `axonhub/gpt-6-sol`.
 | Other | anything else | `@opencode/ai/providers/openai-compatible` | `/v1` (chat completions) |
 
 The AxonHub URL must be the root URL without `/v1`. A trailing `/v1` is stripped automatically.
+
+## Model pricing
+
+`/v1/models?include=all` returns `pricing` for models that have ModelCard data (USD per 1M tokens). The plugin maps it into OpenCode's `cost`, so OpenCode can price input, output, cache read, and cache write tokens, and the session footer shows real amounts.
+
+Notes:
+
+- The price comes from AxonHub's model catalog (ModelCard), not the channel prices under **Channels → Model Prices**.
+- The `usage.cost` AxonHub injects (based on channel prices) is not read by OpenCode; OpenCode always calculates with its local price table.
+- Models without ModelCard data return no `pricing`; their `cost` stays empty and the session shows no amount.
+- If channel prices differ from catalog prices, the footer amount can differ from AxonHub's usage page. Override `cost` for that model in `opencode.json` when they must match exactly.
 
 ## Configuration fallback
 

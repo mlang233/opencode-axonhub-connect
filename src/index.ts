@@ -11,6 +11,15 @@ type Options = {
   apiKey?: string
 }
 
+type AxonHubPricing = {
+  input?: number
+  output?: number
+  cache_read?: number
+  cache_write?: number
+  unit?: string
+  currency?: string
+}
+
 type AxonHubModel = {
   id?: string
   name?: string
@@ -24,6 +33,7 @@ type AxonHubModel = {
     toolCall?: boolean
     reasoning?: boolean
   }
+  pricing?: AxonHubPricing
 }
 
 type Route = {
@@ -115,6 +125,28 @@ async function fetchModels(baseURL: string, key: string): Promise<AxonHubModel[]
   return [...byID.values()]
 }
 
+/**
+ * Map AxonHub's ModelCard pricing to OpenCode's model cost.
+ *
+ * AxonHub returns prices in USD per 1M tokens. Only models with ModelCard data
+ * include a `pricing` object; channel-specific prices configured in AxonHub are
+ * used by AxonHub for `usage.cost` and are not exposed by `/v1/models`.
+ */
+function toCost(pricing: AxonHubPricing | undefined) {
+  if (!pricing) return []
+  if (pricing.currency && pricing.currency.toUpperCase() !== "USD") return []
+  if (pricing.unit && pricing.unit !== "per_1m_tokens") return []
+
+  const input = Number(pricing.input ?? 0)
+  const output = Number(pricing.output ?? 0)
+  const read = Number(pricing.cache_read ?? 0)
+  const write = Number(pricing.cache_write ?? 0)
+  if (![input, output, read, write].every((value) => Number.isFinite(value))) return []
+  if (input === 0 && output === 0 && read === 0 && write === 0) return []
+
+  return [{ input, output, cache: { read, write } }]
+}
+
 function toModel(item: AxonHubModel, baseURL: string) {
   const id = item.id!
   const route = routeFor(item)
@@ -139,7 +171,7 @@ function toModel(item: AxonHubModel, baseURL: string) {
     },
     variants: [],
     time: { released: 0 },
-    cost: [],
+    cost: toCost(item.pricing),
     status: "active",
     enabled: true,
     limit: {

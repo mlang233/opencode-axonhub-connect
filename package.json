@@ -12,6 +12,7 @@
     "src",
     "server.ts",
     "README.md",
+    "README.en.md",
     "LICENSE"
   ],
   "scripts": {

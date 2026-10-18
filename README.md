@@ -1,70 +1,72 @@
 # opencode-axonhub-connect
 
-OpenCode V2 plugin for [AxonHub](https://github.com/looplj/axonhub). It configures the AxonHub URL and API key through OpenCode's native `/connect` flow, discovers models automatically, and routes each model through the protocol its provider expects.
+[English](README.en.md) | 中文
 
-## Features
+OpenCode V2 插件，用于连接 [AxonHub](https://github.com/looplj/axonhub)。通过 OpenCode 原生的 `/connect` 流程配置 AxonHub 地址和 API Key，自动发现模型，并按模型所属协议路由请求。
 
-- `/connect` asks for **AxonHub URL + API Key**, so no `baseURL` or `apiKey` is needed in `opencode.json`.
-- Discovers models from `/v1/models` and `/v1/models?include=all`.
-- Routes models by protocol:
-  - OpenAI models → OpenAI **Responses API** (`/v1`)
-  - Gemini models → Google Gemini API (`/gemini/v1beta`)
-  - Claude models → Anthropic Messages API (`/anthropic/v1`)
-  - everything else → OpenAI-compatible chat completions (`/v1`)
-- Refreshes the model list when the saved credential changes.
-- Stores the API key in OpenCode's credential store, not in the repository or config file.
+## 功能
 
-## Requirements
+- `/connect` 直接填写 **AxonHub URL + API Key**，无需在 `opencode.json` 里配置 `baseURL` 或 `apiKey`。
+- 从 `/v1/models` 和 `/v1/models?include=all` 自动发现模型。
+- 按协议路由模型：
+  - OpenAI 模型 → OpenAI **Responses API**（`/v1`）
+  - Gemini 模型 → Google Gemini API（`/gemini/v1beta`）
+  - Claude 模型 → Anthropic Messages API（`/anthropic/v1`）
+  - 其他模型 → OpenAI 兼容 Chat Completions（`/v1`）
+- 凭据变化后自动刷新模型列表。
+- API Key 保存在 OpenCode 凭据库中，不写入仓库或配置文件。
+
+## 环境要求
 
 - OpenCode V2
-- A reachable AxonHub instance
-- An AxonHub API key
+- 可访问的 AxonHub 实例
+- AxonHub API Key
 
-## Install
+## 安装
 
-Use OpenCode's plugin installer:
+使用 OpenCode 插件安装命令：
 
 ```sh
 opencode plugin add github:mlang233/opencode-axonhub-connect
 ```
 
-Pin a release tag if you prefer:
+如果需要固定版本：
 
 ```sh
 opencode plugin add github:mlang233/opencode-axonhub-connect#v0.1.1
 ```
 
-Then connect:
+然后连接：
 
 ```text
 /connect
-# Select AxonHub
+# 选择 AxonHub
 # AxonHub URL: https://your-axonhub.example.com
 # API Key: ah-...
 ```
 
-Finally:
+最后：
 
 ```text
 /models
 ```
 
-Models appear under the `axonhub/` prefix, for example `axonhub/gpt-6-sol`.
+模型会以 `axonhub/` 为前缀出现，例如 `axonhub/gpt-6-sol`。
 
-## Routing
+## 模型协议路由
 
-| Model type | Detection | OpenCode package | AxonHub endpoint |
+| 模型类型 | 识别方式 | OpenCode package | AxonHub 端点 |
 | --- | --- | --- | --- |
-| OpenAI | `owned_by=openai`, `gpt-*`, `o1`–`o9`, `codex*` | `@opencode/ai/providers/openai/responses` | `/v1` (Responses API) |
-| Gemini | `owned_by=google`/`gemini`, `gemini-*` | `@opencode/ai/providers/google` | `/gemini/v1beta` |
-| Claude | `owned_by=anthropic`, `claude*` | `@opencode/ai/providers/anthropic` | `/anthropic/v1` |
-| Other | anything else | `@opencode/ai/providers/openai-compatible` | `/v1` (chat completions) |
+| OpenAI | `owned_by=openai`、`gpt-*`、`o1`–`o9`、`codex*` | `@opencode/ai/providers/openai/responses` | `/v1`（Responses API） |
+| Gemini | `owned_by=google`/`gemini`、`gemini-*` | `@opencode/ai/providers/google` | `/gemini/v1beta` |
+| Claude | `owned_by=anthropic`、`claude*` | `@opencode/ai/providers/anthropic` | `/anthropic/v1` |
+| 其他 | 其他所有模型 | `@opencode/ai/providers/openai-compatible` | `/v1`（Chat Completions） |
 
-The AxonHub URL must be the root URL without `/v1`. A trailing `/v1` is stripped automatically.
+AxonHub URL 填根地址，不要带 `/v1`。即使误带了 `/v1`，插件也会自动去掉。
 
-## Configuration fallback
+## 非交互配置
 
-`/connect` is the recommended setup. For non-interactive environments, plugin options and environment variables also work:
+推荐使用 `/connect`。在无法交互的环境中，也可以使用插件 options 和环境变量：
 
 ```jsonc
 {
@@ -84,32 +86,32 @@ export AXONHUB_BASE_URL="https://axonhub.example.com"
 export AXONHUB_API_KEY="ah-..."
 ```
 
-Resolution order:
+解析顺序：
 
-- URL: plugin option → saved `/connect` credential → `AXONHUB_BASE_URL`
-- Key: plugin option → saved `/connect` credential → `AXONHUB_API_KEY`
+- URL：插件 option → `/connect` 保存的凭据 → `AXONHUB_BASE_URL`
+- Key：插件 option → `/connect` 保存的凭据 → `AXONHUB_API_KEY`
 
-## How it works
+## 工作原理
 
-The plugin registers an `axonhub` integration with a key method. The key method includes an `axonhubBaseURL` form field, so OpenCode stores both values in the credential configuration.
+插件注册一个名为 `axonhub` 的 integration，使用 key 认证方式。key 认证表单里包含 `axonhubBaseURL` 字段，OpenCode 会把 URL 和 API Key 一起保存到凭据配置中。
 
-The field is intentionally not named `baseURL`: OpenCode treats a credential `configuration.baseURL` as a provider-wide endpoint and would override the per-model endpoints. Using `axonhubBaseURL` keeps discovery and per-model routing independent.
+字段故意不叫 `baseURL`：OpenCode 会把凭据里的 `configuration.baseURL` 当成 provider 级地址，从而覆盖每个模型自己的端点。使用 `axonhubBaseURL` 可以让模型发现和按模型路由互不干扰。
 
-On startup and on credential changes, the plugin fetches the model inventory and registers an `axonhub` provider with a per-model package and endpoint. Requests use HTTP transport to avoid provider WebSocket negotiation with gateways that do not support it.
+插件在启动时以及凭据变化时拉取模型列表，然后注册 `axonhub` provider，并为每个模型设置对应的 package 和 endpoint。请求强制使用 HTTP transport，避免网关不支持 WebSocket 时卡住。
 
-## Security
+## 安全
 
-- The API key is stored by OpenCode's credential store.
-- The plugin never writes the key to `opencode.json` or the repository.
-- If you use the environment fallback, set the variable in the OpenCode server environment (for example with `opencode service set env`).
+- API Key 由 OpenCode 凭据库保存。
+- 插件不会把 Key 写入 `opencode.json` 或仓库。
+- 如果使用环境变量方式，请把变量配置到 OpenCode 服务进程中，例如使用 `opencode service set env`。
 
-## Development
+## 开发
 
 ```sh
 npm install
 npm run check
 ```
 
-## License
+## 许可证
 
 MIT

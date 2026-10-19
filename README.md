@@ -9,6 +9,7 @@ OpenCode V2 插件，用于连接 [AxonHub](https://github.com/looplj/axonhub)�
 - `/connect` 直接填写 **AxonHub URL + API Key**，无需在 `opencode.json` 里配置 `baseURL` 或 `apiKey`。
 - 从 `/v1/models` 和 `/v1/models?include=all` 自动发现模型。
 - 自动把 AxonHub 返回的模型价格映射到 OpenCode，会话花费和 footer 可以直接显示金额。
+- 为支持推理的模型注册对应的思考等级（OpenAI、Claude、Gemini、DeepSeek 等），模型选择器可正常显示 thinking effort。
 - 按协议路由模型：
   - OpenAI 模型 → OpenAI **Responses API**（`/v1`）
   - Gemini 模型 → Google Gemini API（`/gemini/v1beta`）
@@ -34,7 +35,7 @@ opencode plugin add github:mlang233/opencode-axonhub-connect
 如果需要固定版本：
 
 ```sh
-opencode plugin add github:mlang233/opencode-axonhub-connect#v0.2.0
+opencode plugin add github:mlang233/opencode-axonhub-connect#v0.3.0
 ```
 
 然后连接：

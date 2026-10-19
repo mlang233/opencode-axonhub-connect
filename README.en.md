@@ -9,6 +9,7 @@ OpenCode V2 plugin for [AxonHub](https://github.com/looplj/axonhub). It configur
 - `/connect` asks for **AxonHub URL + API Key**, so no `baseURL` or `apiKey` is needed in `opencode.json`.
 - Discovers models from `/v1/models` and `/v1/models?include=all`.
 - Maps AxonHub model pricing into OpenCode so session cost and the footer show real amounts.
+- Registers protocol-appropriate reasoning levels for capable models (OpenAI, Claude, Gemini, DeepSeek, and others), restoring thinking-effort options in the model picker.
 - Routes models by protocol:
   - OpenAI models → OpenAI **Responses API** (`/v1`)
   - Gemini models → Google Gemini API (`/gemini/v1beta`)
@@ -34,7 +35,7 @@ opencode plugin add github:mlang233/opencode-axonhub-connect
 Pin a release tag if you prefer:
 
 ```sh
-opencode plugin add github:mlang233/opencode-axonhub-connect#v0.2.0
+opencode plugin add github:mlang233/opencode-axonhub-connect#v0.3.0
 ```
 
 Then connect:

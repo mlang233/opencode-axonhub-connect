@@ -125,6 +125,17 @@ npm install
 npm run check
 ```
 
+## Release
+
+Pushing a `v*` tag triggers the Release workflow, which runs the type check, builds the package, and attaches the `.tgz` to the GitHub Release:
+
+```sh
+npm version patch
+git push origin main --follow-tags
+```
+
+You can also run the `Release` workflow manually from the Actions tab with an existing tag (for example, `v0.3.0`) to backfill or retry a release.
+
 ## License
 
 MIT

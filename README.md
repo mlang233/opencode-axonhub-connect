@@ -125,6 +125,17 @@ npm install
 npm run check
 ```
 
+## 发布
+
+推送 `v*` 标签会触发 Release 工作流，自动执行类型检查、打包，并把 `.tgz` 附加到 GitHub Release：
+
+```sh
+npm version patch
+git push origin main --follow-tags
+```
+
+也可以在 Actions 页面手动运行 `Release` 工作流，并填入一个已存在的标签（例如 `v0.3.0`），用于补发或重试。
+
 ## 许可证
 
 MIT

@@ -41,11 +41,22 @@ type Route = {
   path: string
 }
 
+type Variant = {
+  id: string
+  settings?: Record<string, unknown>
+  body?: Record<string, unknown>
+  headers?: Record<string, string>
+}
+
 type State = {
   baseURL: string
   key: string
   models: any[]
 }
+
+const OPENAI_RESPONSES_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh"]
+const OPENAI_CHAT_EFFORTS = ["low", "medium", "high"]
+const GOOGLE_EFFORTS = ["low", "medium", "high"]
 
 function normalizeBaseURL(value: unknown): string {
   return String(value ?? "")
@@ -147,10 +158,116 @@ function toCost(pricing: AxonHubPricing | undefined) {
   return [{ input, output, cache: { read, write } }]
 }
 
+function variant(id: string, settings: Record<string, unknown>): Variant {
+  return { id, settings }
+}
+
+/**
+ * OpenCode V2 does not infer reasoning variants from a plugin-provided model.
+ * It only derives them from `capabilities.reasoning` in provider config, or
+ * uses the `variants` array registered by the provider. AxonHub exposes only
+ * a boolean `capabilities.reasoning`, so we spell the variants for the
+ * selected protocol here.
+ */
+function claudeInfo(id: string) {
+  // Prefer "claude-3-7-sonnet" over "claude-sonnet-4-5". The version-first
+  // form is ambiguous with the date suffix on IDs such as
+  // claude-3-7-sonnet-20250219.
+  const versionFirst = /claude-(\d{1,2})(?:[.-](\d{1,2}))?-(opus|sonnet|haiku|fable|mythos)/i.exec(id)
+  const familyFirst = /(?:claude-)?(opus|sonnet|haiku|fable|mythos)-(\d{1,2})(?:[.-](\d{1,2}))?(?!\d)/i.exec(id)
+  const family = (versionFirst?.[3] ?? familyFirst?.[1])?.toLowerCase()
+  const major = Number(versionFirst?.[1] ?? familyFirst?.[2])
+  const minor = Number(versionFirst?.[2] ?? familyFirst?.[3] ?? 0)
+  return { family, major, minor }
+}
+
+function claudeVariants(id: string, output: number): Variant[] {
+  const info = claudeInfo(id)
+  const budget = (tokens: number) => ({ thinking: { type: "enabled", budgetTokens: tokens } })
+  const ceiling = Math.max(1024, output - 1)
+  const opus45 = info.family === "opus" && info.major === 4 && info.minor === 5
+  const manual = Number.isFinite(info.major) && (info.major < 4 || (info.major === 4 && info.minor < 6))
+
+  if (manual && !opus45) {
+    const high = Math.min(16000, ceiling)
+    const max = Math.min(32000, ceiling)
+    return [
+      variant("high", budget(high)),
+      ...(max > high ? [variant("max", budget(max))] : []),
+    ]
+  }
+
+  const thinking = opus45 ? budget(Math.min(16000, ceiling)) : { thinking: { type: "adaptive", display: "summarized" } }
+  const efforts =
+    info.major === 4 && info.minor >= 6
+      ? ["low", "medium", "high", "max"]
+      : ["low", "medium", "high", "xhigh", "max"]
+  return efforts.map((effort) => variant(effort, { ...thinking, effort }))
+}
+
+function googleVariants(id: string, output: number): Variant[] {
+  if (id.includes("2.5")) {
+    const ceiling = id.includes("flash") ? 24576 : 32768
+    const max = Math.min(ceiling, Math.max(1024, output - 1))
+    const high = Math.min(16000, max)
+    return [
+      variant("high", { thinkingConfig: { includeThoughts: true, thinkingBudget: high } }),
+      ...(max > high
+        ? [variant("max", { thinkingConfig: { includeThoughts: true, thinkingBudget: max } })]
+        : []),
+    ]
+  }
+
+  return GOOGLE_EFFORTS.map((effort) =>
+    variant(effort, { thinkingConfig: { includeThoughts: true, thinkingLevel: effort } }),
+  )
+}
+
+function toVariants(item: AxonHubModel, route: Route, output: number): Variant[] {
+  if (item.capabilities?.reasoning !== true) return []
+
+  const id = (item.id ?? "").toLowerCase()
+
+  if (route.package === "@opencode/ai/providers/openai/responses") {
+    // GPT-6 Astra rejects `none`; GPT-6.1 rejects `none` and `minimal`.
+    // Keep the levels that are accepted across the GPT-6 family.
+    const efforts = id.includes("gpt-6")
+      ? ["low", "medium", "high", "xhigh"]
+      : OPENAI_RESPONSES_EFFORTS
+    return efforts.map((effort) =>
+      variant(effort, {
+        reasoningEffort: effort,
+        reasoningSummary: "auto",
+        include: ["reasoning.encrypted_content"],
+      }),
+    )
+  }
+
+  if (route.package === "@opencode/ai/providers/anthropic") {
+    return claudeVariants(id, output)
+  }
+
+  if (route.package === "@opencode/ai/providers/google") {
+    return googleVariants(id, output)
+  }
+
+  // DeepSeek's native levels are none/low/high/max. AxonHub accepts the
+  // unified `reasoning_effort` values, so keep the same ids as the official
+  // DeepSeek provider instead of the generic low/medium/high set.
+  if ((item.owned_by ?? "").toLowerCase() === "deepseek" || id.includes("deepseek")) {
+    return ["none", "low", "high", "max"].map((effort) =>
+      variant(effort, { reasoningEffort: effort }),
+    )
+  }
+
+  return OPENAI_CHAT_EFFORTS.map((effort) => variant(effort, { reasoningEffort: effort }))
+}
+
 function toModel(item: AxonHubModel, baseURL: string) {
   const id = item.id!
   const route = routeFor(item)
   const vision = item.capabilities?.vision === true
+  const output = item.max_output_tokens ?? 32_000
 
   return {
     id,
@@ -169,14 +286,14 @@ function toModel(item: AxonHubModel, baseURL: string) {
       input: vision ? ["text", "image"] : ["text"],
       output: ["text"],
     },
-    variants: [],
+    variants: toVariants(item, route, output),
     time: { released: 0 },
     cost: toCost(item.pricing),
     status: "active",
     enabled: true,
     limit: {
       context: item.context_length ?? 200_000,
-      output: item.max_output_tokens ?? 32_000,
+      output,
     },
   }
 }

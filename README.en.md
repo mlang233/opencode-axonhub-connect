@@ -15,7 +15,7 @@ OpenCode V2 plugin for [AxonHub](https://github.com/looplj/axonhub). It configur
   - Gemini models → Google Gemini API (`/gemini/v1beta`)
   - Claude models → Anthropic Messages API (`/anthropic/v1`)
   - everything else → OpenAI-compatible chat completions (`/v1`)
-- Refreshes the model list when the saved credential changes.
+- Refreshes the model list when the saved credential changes, keeps the last inventory when discovery fails, and retries with backoff.
 - Stores the API key in OpenCode's credential store, not in the repository or config file.
 
 ## Requirements
@@ -35,7 +35,7 @@ opencode plugin add github:mlang233/opencode-axonhub-connect
 Pin a release tag if you prefer:
 
 ```sh
-opencode plugin add github:mlang233/opencode-axonhub-connect#v0.3.0
+opencode plugin add github:mlang233/opencode-axonhub-connect#v0.3.1
 ```
 
 Then connect:
@@ -112,6 +112,8 @@ The field is intentionally not named `baseURL`: OpenCode treats a credential `co
 
 On startup and on credential changes, the plugin fetches the model inventory and registers an `axonhub` provider with a per-model package and endpoint. Requests use HTTP transport to avoid provider WebSocket negotiation with gateways that do not support it.
 
+If model discovery fails (for example during a network blip or while AxonHub is temporarily unavailable), the plugin keeps the last successfully fetched inventory and retries automatically with exponential backoff starting at 30 seconds and capped at 5 minutes, so the provider does not disappear from `/models`. The provider is only removed when the AxonHub URL changes or the credential is removed.
+
 ## Security
 
 - The API key is stored by OpenCode's credential store.
@@ -134,7 +136,7 @@ npm version patch
 git push origin main --follow-tags
 ```
 
-You can also run the `Release` workflow manually from the Actions tab with an existing tag (for example, `v0.3.0`) to backfill or retry a release.
+You can also run the `Release` workflow manually from the Actions tab with an existing tag (for example, `v0.3.1`) to backfill or retry a release.
 
 ## License
 

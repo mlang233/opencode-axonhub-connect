@@ -5,6 +5,8 @@ const INTEGRATION_ID = "axonhub"
 const ENV_BASE_URL = "AXONHUB_BASE_URL"
 const ENV_KEY = "AXONHUB_API_KEY"
 const DISCOVERY_TIMEOUT_MS = 15_000
+const RETRY_INITIAL_MS = 30_000
+const RETRY_MAX_MS = 5 * 60_000
 
 type Options = {
   baseURL?: string
@@ -379,32 +381,89 @@ export default Plugin.define({
       })
     })
 
-    const refresh = async () => {
+    const controller = new AbortController()
+    let refreshPromise: Promise<void> | undefined
+    let refreshQueued = false
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    let retryDelay = RETRY_INITIAL_MS
+
+    const clearRetry = () => {
+      if (retryTimer === undefined) return
+      clearTimeout(retryTimer)
+      retryTimer = undefined
+    }
+
+    const scheduleRetry = () => {
+      if (retryTimer !== undefined || controller.signal.aborted) return
+      const delay = retryDelay
+      retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS)
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined
+        void refresh().catch((error) => {
+          console.error("[opencode-axonhub-connect] refresh failed", error)
+        })
+      }, delay)
+    }
+
+    const refreshOnce = async () => {
+      if (controller.signal.aborted) return
+
       const { baseURL, key } = await resolveCredential()
       if (!baseURL || !key) {
+        clearRetry()
+        retryDelay = RETRY_INITIAL_MS
+        if (!state) return
         state = undefined
-        await ctx.provider.reload()
+        if (!controller.signal.aborted) await ctx.provider.reload()
         return
       }
 
       try {
         const items = await fetchModels(baseURL, key)
+        if (items.length === 0) throw new Error("AxonHub returned no models")
         state = {
           baseURL,
           key,
           models: items.map((item) => toModel(item, baseURL)),
         }
+        retryDelay = RETRY_INITIAL_MS
+        clearRetry()
       } catch (error) {
         console.error("[opencode-axonhub-connect] model discovery failed", error)
-        state = undefined
+        // Discovery failures are usually transient. Keep the last known
+        // inventory so the provider does not vanish from /models; only drop
+        // it when the configured endpoint changed.
+        if (state?.baseURL !== baseURL) {
+          state = undefined
+          if (!controller.signal.aborted) await ctx.provider.reload()
+        }
+        scheduleRetry()
+        return
       }
 
-      await ctx.provider.reload()
+      if (!controller.signal.aborted) await ctx.provider.reload()
+    }
+
+    const refresh = async (): Promise<void> => {
+      if (refreshPromise) {
+        refreshQueued = true
+        return refreshPromise
+      }
+
+      refreshPromise = (async () => {
+        do {
+          refreshQueued = false
+          await refreshOnce()
+        } while (refreshQueued && !controller.signal.aborted)
+      })().finally(() => {
+        refreshPromise = undefined
+      })
+
+      return refreshPromise
     }
 
     await refresh()
 
-    const controller = new AbortController()
     void (async () => {
       for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
         if (
@@ -416,6 +475,9 @@ export default Plugin.define({
       }
     })().catch(() => {})
 
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      clearRetry()
+    }
   },
 })

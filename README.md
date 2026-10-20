@@ -15,7 +15,7 @@ OpenCode V2 插件，用于连接 [AxonHub](https://github.com/looplj/axonhub)�
   - Gemini 模型 → Google Gemini API（`/gemini/v1beta`）
   - Claude 模型 → Anthropic Messages API（`/anthropic/v1`）
   - 其他模型 → OpenAI 兼容 Chat Completions（`/v1`）
-- 凭据变化后自动刷新模型列表。
+- 凭据变化后自动刷新模型列表；模型发现失败时保留上次结果，并按退避策略自动重试。
 - API Key 保存在 OpenCode 凭据库中，不写入仓库或配置文件。
 
 ## 环境要求
@@ -35,7 +35,7 @@ opencode plugin add github:mlang233/opencode-axonhub-connect
 如果需要固定版本：
 
 ```sh
-opencode plugin add github:mlang233/opencode-axonhub-connect#v0.3.0
+opencode plugin add github:mlang233/opencode-axonhub-connect#v0.3.1
 ```
 
 然后连接：
@@ -112,6 +112,8 @@ export AXONHUB_API_KEY="ah-..."
 
 插件在启动时以及凭据变化时拉取模型列表，然后注册 `axonhub` provider，并为每个模型设置对应的 package 和 endpoint。请求强制使用 HTTP transport，避免网关不支持 WebSocket 时卡住。
 
+如果模型发现失败（例如网络抖动或 AxonHub 暂时不可用），插件会保留上一次成功获取的模型列表，并按 30 秒起步、最长 5 分钟的退避间隔自动重试，渠道不会从 `/models` 中消失。只有 AxonHub 地址发生变化或凭据被移除时，插件才会移除该渠道。
+
 ## 安全
 
 - API Key 由 OpenCode 凭据库保存。
@@ -134,7 +136,7 @@ npm version patch
 git push origin main --follow-tags
 ```
 
-也可以在 Actions 页面手动运行 `Release` 工作流，并填入一个已存在的标签（例如 `v0.3.0`），用于补发或重试。
+也可以在 Actions 页面手动运行 `Release` 工作流，并填入一个已存在的标签（例如 `v0.3.1`），用于补发或重试。
 
 ## 许可证
 

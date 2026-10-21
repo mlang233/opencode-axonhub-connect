@@ -311,13 +311,16 @@ export default Plugin.define({
       const credential = connection
         ? await ctx.integration.connection.resolve(connection)
         : undefined
-      const configuration =
-        credential?.type === "key" ? credential.configuration : undefined
+      const keyCredential = credential?.type === "key" ? credential : undefined
 
+      // OpenCode 2.1 moved key-method form answers from `configuration` to
+      // `metadata`. Read both so the saved AxonHub URL survives the upgrade.
       const configuredBaseURL =
-        typeof configuration?.axonhubBaseURL === "string"
-          ? configuration.axonhubBaseURL
-          : undefined
+        typeof keyCredential?.metadata?.axonhubBaseURL === "string"
+          ? keyCredential.metadata.axonhubBaseURL
+          : typeof keyCredential?.configuration?.axonhubBaseURL === "string"
+            ? keyCredential.configuration.axonhubBaseURL
+            : undefined
 
       const baseURL = normalizeBaseURL(
         options.baseURL ??
@@ -326,9 +329,7 @@ export default Plugin.define({
           "",
       )
       const key =
-        options.apiKey ??
-        (credential?.type === "key" ? credential.key : undefined) ??
-        process.env[ENV_KEY]
+        options.apiKey ?? keyCredential?.key ?? process.env[ENV_KEY]
 
       return {
         baseURL,
